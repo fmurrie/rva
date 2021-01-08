@@ -95,7 +95,7 @@ func (pointer RvaMySqlDao) DeployDatabase() {
 		basepath := filepath.Dir(b)
 		basepath = filepath.Clean(filepath.Join(basepath, ".."))
 		basepath = filepath.Clean(filepath.Join(basepath, ".."))
-		basepath = basepath + "\\rva-database\\" + folder
+		basepath = basepath + "\\rva-database\\mysql\\" + folder
 
 		files, err := ioutil.ReadDir(basepath)
 		if err != nil {
@@ -117,12 +117,12 @@ func (pointer RvaMySqlDao) DeployDatabase() {
 			isAlreadyDeployed := false
 			reDeploy := false
 
-			transaction.QueryRowContext(context, "select if(reDeploy,false,if(count(*)>0,true,false)) from rvaFileDeployed where route = ? limit 1", route).Scan(&isAlreadyDeployed)
+			transaction.QueryRowContext(context, "select if(count(*)>0,true,false),ifnull(reDeploy,false) from rvaFileDeployed where route = ? limit 1", route).Scan(&isAlreadyDeployed,&reDeploy)
 
-			if !isAlreadyDeployed {
+			if !isAlreadyDeployed || reDeploy{
 				fileBytes, _ := ioutil.ReadFile(route)
 
-				if folder == "procedure" || folder == "trigger" {
+				if folder=="function" || folder=="view" || folder=="procedure" || folder=="event" || folder=="trigger"{
 					reDeploy = true
 					transaction.ExecContext(context, "drop "+folder+" if exists "+fileName+";")
 				}
@@ -140,14 +140,16 @@ func (pointer RvaMySqlDao) DeployDatabase() {
 						transaction.Rollback()
 						return err
 					}
-					_, err = transaction.ExecContext(context, "insert into rvaProcedure (procedureName,procedureQuery,creatorAccount,updaterAccount) values (?,?,?,?);", fileName, procedureQuery, "System", "System")
-					if err != nil {
+					if !isAlreadyDeployed {
+						_, err = transaction.ExecContext(context, "insert into rvaProcedure (procedureName,procedureQuery,creatorAccount,updaterAccount) values (?,?,?,?);", fileName, procedureQuery, "System", "System")
+					}else{
 						transaction.ExecContext(context, "update rvaProcedure set procedureQuery = ?, updaterAccount = ?, updatedDate = now() where procedureName = ?;", procedureQuery, "System", fileName)
 					}
 				}
-
-				_, err = transaction.ExecContext(context, "insert into rvaFileDeployed (fileName,route,reDeploy,creatorAccount,updaterAccount) values (?,?,?,?,?);", fileName, route, reDeploy, "System", "System")
-				if err != nil {
+				
+				if !isAlreadyDeployed {
+					_, err = transaction.ExecContext(context, "insert into rvaFileDeployed (fileName,route,reDeploy,creatorAccount,updaterAccount) values (?,?,?,?,?);", fileName, route, reDeploy, "System", "System")
+				}else{
 					transaction.ExecContext(context, "update rvaFileDeployed set updaterAccount = ?, updatedDate = now() where route = ?;", "System", route)
 				}
 			}
