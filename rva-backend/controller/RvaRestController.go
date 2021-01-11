@@ -5,6 +5,7 @@ import (
 	"rva/factory"
 	"strings"
 	"sync"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,7 +32,6 @@ func GetRvaRestController() *RvaRestController {
 }
 
 func (pointer RvaRestController) RaiseEndpoints() {
-
 	result := pointer.rvaDao.ExecuteWithoutLock("call rvaEndpoint_getAll();")
 	if result != nil {
 		buildEndpoint := func(endpoint map[string]interface{}) {
@@ -69,7 +69,7 @@ func (pointer RvaRestController) RaiseEndpoints() {
 }
 
 func (pointer RvaRestController) DoEndpointProcess(idRvaEndpoint int, parameter interface{}) interface{} {
-	steps := pointer.rvaDao.ExecuteWithoutLock(fmt.Sprint("call rvaEndpointStep_getByIdRvaEndpoint(", idRvaEndpoint,");"))
+	steps := pointer.rvaDao.ExecuteWithoutLock(fmt.Sprint("call rvaEndpointStep_getByIdRvaEndpoint(",idRvaEndpoint,");"))
 	var queries []string
 	if steps!=nil{
 		switch steps.(type) {

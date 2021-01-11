@@ -117,12 +117,12 @@ func (pointer RvaMySqlDao) DeployDatabase() {
 			isAlreadyDeployed := false
 			reDeploy := false
 
-			transaction.QueryRowContext(context, "select if(count(*)>0,true,false),ifnull(reDeploy,false) from rvaFileDeployed where route = ? limit 1", route).Scan(&isAlreadyDeployed,&reDeploy)
+			transaction.QueryRowContext(context, "select if(count(*)>0,true,false),ifnull(reDeploy,false) from rvaFileDeployed where route = ? limit 1", route).Scan(&isAlreadyDeployed, &reDeploy)
 
-			if !isAlreadyDeployed || reDeploy{
+			if !isAlreadyDeployed || reDeploy {
 				fileBytes, _ := ioutil.ReadFile(route)
 
-				if folder=="function" || folder=="view" || folder=="procedure" || folder=="event" || folder=="trigger"{
+				if folder == "function" || folder == "view" || folder == "procedure" || folder == "event" || folder == "trigger" {
 					reDeploy = true
 					transaction.ExecContext(context, "drop "+folder+" if exists "+fileName+";")
 				}
@@ -142,14 +142,14 @@ func (pointer RvaMySqlDao) DeployDatabase() {
 					}
 					if !isAlreadyDeployed {
 						_, err = transaction.ExecContext(context, "insert into rvaProcedure (procedureName,procedureQuery,creatorAccount,updaterAccount) values (?,?,?,?);", fileName, procedureQuery, "System", "System")
-					}else{
+					} else {
 						transaction.ExecContext(context, "update rvaProcedure set procedureQuery = ?, updaterAccount = ?, updatedDate = now() where procedureName = ?;", procedureQuery, "System", fileName)
 					}
 				}
-				
+
 				if !isAlreadyDeployed {
 					_, err = transaction.ExecContext(context, "insert into rvaFileDeployed (fileName,route,reDeploy,creatorAccount,updaterAccount) values (?,?,?,?,?);", fileName, route, reDeploy, "System", "System")
-				}else{
+				} else {
 					transaction.ExecContext(context, "update rvaFileDeployed set updaterAccount = ?, updatedDate = now() where route = ?;", "System", route)
 				}
 			}
@@ -231,7 +231,8 @@ func (pointer RvaMySqlDao) ExecuteContext(parameter interface{}, queries []strin
 			return results, nil
 		}
 
-		result,err:=recursive(parameter)
+		result, err := recursive(parameter)
+
 		if err != nil {
 			return nil, err
 		}
@@ -265,12 +266,12 @@ func (pointer RvaMySqlDao) execute(query string, opts *sql.TxOptions) interface{
 		return nil
 	}
 	result := pointer.mapResultset(rows)
+
 	err = transaction.Commit()
 	if err != nil {
 		transaction.Rollback()
 		return nil
 	}
-
 	return result
 }
 
