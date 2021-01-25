@@ -1,9 +1,11 @@
 package main
 
 import (
-	"rva/controller"
 	"rva/dao"
+	"rva/controller"
 )
+
+
 
 func main() {
 	dao.GetRvaMySqlDao().DeployDatabase()

@@ -1,6 +1,5 @@
 insert into rvaModule 
 (
-	idRvaModule,
 	moduleName,
 	description,
 	creatorAccount,
@@ -9,8 +8,7 @@ insert into rvaModule
 values
 (
 	'RVA',
-	'RVA',
 	'RVA Module for the system architecture',
-	'system',
-	'system'
+	'System',
+	'System'
 );

@@ -3,21 +3,22 @@ package factory
 import (
 	// "context"
 	"database/sql"
-	"rva/dao"
 	"github.com/spf13/viper"
+	"rva/dao"
+	"rva/helper"
 )
-
 
 type RvaDao interface {
 	DeployDatabase()
 	OpenConnection() *sql.DB
 	Execute(query string) interface{}
 	ExecuteWithoutLock(query string) interface{}
-	ExecuteContext(parameter interface{}, queries []string) (interface{}, error)
+	ExecuteContext(parameter interface{}, queries []string) interface{}
+	LogError(err error)
 }
 
 func GetRvaDao() RvaDao {
-	switch viper.GetString("default.driver") {
+	switch helper.GetRvaSecurityHelper().Decrypt(viper.GetString("database.driver")) {
 	case "mysql":
 		return dao.GetRvaMySqlDao()
 	}

@@ -1,10 +1,13 @@
 package dao
 
 import (
+	"rva/helper"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/spf13/viper"
 	"io/ioutil"
 	"log"
 	"path/filepath"
@@ -13,9 +16,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/spf13/viper"
 )
 
 var lockRvaMySqlDao = &sync.Mutex{}
@@ -29,6 +29,7 @@ type RvaMySqlDao struct {
 	user       string
 	password   string
 	charset    string
+	deploy     bool
 	connection *sql.DB
 }
 
@@ -38,16 +39,17 @@ func GetRvaMySqlDao() *RvaMySqlDao {
 		defer lockRvaMySqlDao.Unlock()
 		if instanceRvaMySqlDao == nil {
 			viper.AddConfigPath("./")
-			viper.SetConfigName("database")
+			viper.SetConfigName("configuration")
 			viper.ReadInConfig()
 			instanceRvaMySqlDao = &RvaMySqlDao{
-				driver:   viper.GetString("default.driver"),
-				host:     viper.GetString("default.host"),
-				port:     viper.GetString("default.port"),
-				dbName:   viper.GetString("default.database"),
-				user:     viper.GetString("default.user"),
-				password: viper.GetString("default.password"),
-				charset:  viper.GetString("default.charset"),
+				driver:   helper.GetRvaSecurityHelper().Decrypt(viper.GetString("database.driver")),
+				host:     helper.GetRvaSecurityHelper().Decrypt(viper.GetString("database.host")),
+				port:     helper.GetRvaSecurityHelper().Decrypt(viper.GetString("database.port")),
+				dbName:   helper.GetRvaSecurityHelper().Decrypt(viper.GetString("database.dbname")),
+				user:     helper.GetRvaSecurityHelper().Decrypt(viper.GetString("database.user")),
+				password: helper.GetRvaSecurityHelper().Decrypt(viper.GetString("database.password")),
+				charset:  helper.GetRvaSecurityHelper().Decrypt(viper.GetString("database.charset")),
+				deploy:   viper.GetBool("database.deploy"),
 			}
 
 		}
@@ -56,18 +58,18 @@ func GetRvaMySqlDao() *RvaMySqlDao {
 }
 
 func (pointer RvaMySqlDao) DeployDatabase() {
+	if pointer.deploy {
+		connection, err := sql.Open(instanceRvaMySqlDao.driver, fmt.Sprint(instanceRvaMySqlDao.user, ":", instanceRvaMySqlDao.password, "@tcp(", instanceRvaMySqlDao.host, ":", instanceRvaMySqlDao.port, ")/"))
+		if err != nil {
+			return
+		}
+		defer connection.Close()
 
-	connection, err := sql.Open(instanceRvaMySqlDao.driver, fmt.Sprint(instanceRvaMySqlDao.user, ":", instanceRvaMySqlDao.password, "@tcp(", instanceRvaMySqlDao.host, ":", instanceRvaMySqlDao.port, ")/"))
-	if err != nil {
-		return
-	}
-	defer connection.Close()
+		connection.Exec("create database if not exists " + pointer.dbName)
+		connection.Exec("use " + pointer.dbName)
 
-	connection.Exec("create database if not exists " + pointer.dbName)
-	connection.Exec("use " + pointer.dbName)
-
-	connection.Exec(
-		`create table if not exists rvaError
+		connection.Exec(
+			`create table if not exists rvaError
 	(
 		idRvaError int auto_increment,
 		message text,
@@ -75,8 +77,8 @@ func (pointer RvaMySqlDao) DeployDatabase() {
 		constraint pk_rvaError_idRvaError primary key(idRvaError)
 	);`)
 
-	connection.Exec(
-		`create table if not exists rvaFileDeployed
+		connection.Exec(
+			`create table if not exists rvaFileDeployed
 	(
 		idRvaFileDeployed int auto_increment,
 		fileName varchar(200) not null,
@@ -90,79 +92,90 @@ func (pointer RvaMySqlDao) DeployDatabase() {
 		constraint uk_rvaFileDeployed_route unique key(route)
 	);`)
 
-	deployByFolder := func(folder string) error {
-		_, b, _, _ := runtime.Caller(0)
-		basepath := filepath.Dir(b)
-		basepath = filepath.Clean(filepath.Join(basepath, ".."))
-		basepath = filepath.Clean(filepath.Join(basepath, ".."))
-		basepath = basepath + "\\rva-database\\mysql\\" + folder
+		deployByFolder := func(folder string) error {
+			_, b, _, _ := runtime.Caller(0)
+			basepath := filepath.Dir(b)
+			basepath = filepath.Clean(filepath.Join(basepath, ".."))
+			basepath = filepath.Clean(filepath.Join(basepath, ".."))
+			basepath = basepath + "\\rva-database\\mysql\\" + folder
 
-		files, err := ioutil.ReadDir(basepath)
-		if err != nil {
-			return err
-		}
+			files, err := ioutil.ReadDir(basepath)
+			if err != nil {
+				return err
+			}
 
-		context := context.Background()
-		transaction, err := connection.BeginTx(context, nil)
-		if err != nil {
-			transaction.Rollback()
-			return err
-		}
-		transaction.ExecContext(context, "set autocommit=0;")
+			context := context.Background()
+			transaction, err := connection.BeginTx(context, nil)
+			if err != nil {
+				transaction.Rollback()
+				return err
+			}
+			transaction.ExecContext(context, "set autocommit=0;")
 
-		for _, file := range files {
+			for _, file := range files {
 
-			route := basepath + "\\" + file.Name()
-			fileName := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
-			isAlreadyDeployed := false
-			reDeploy := false
+				route := basepath + "\\" + file.Name()
+				fileName := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
+				isAlreadyDeployed := false
+				reDeploy := false
 
-			transaction.QueryRowContext(context, "select if(count(*)>0,true,false),ifnull(reDeploy,false) from rvaFileDeployed where route = ? limit 1", route).Scan(&isAlreadyDeployed, &reDeploy)
+				transaction.QueryRowContext(context, "select if(count(*)>0,true,false),ifnull(reDeploy,false) from rvaFileDeployed where route = ? limit 1", route).Scan(&isAlreadyDeployed, &reDeploy)
 
-			if !isAlreadyDeployed || reDeploy {
-				fileBytes, _ := ioutil.ReadFile(route)
+				if !isAlreadyDeployed || reDeploy {
+					fileBytes, _ := ioutil.ReadFile(route)
 
-				if folder == "function" || folder == "view" || folder == "procedure" || folder == "event" || folder == "trigger" {
-					reDeploy = true
-					transaction.ExecContext(context, "drop "+folder+" if exists "+fileName+";")
-				}
+					if folder == "function" || folder == "view" || folder == "procedure" || folder == "event" || folder == "trigger" {
+						reDeploy = true
+						transaction.ExecContext(context, "drop "+folder+" if exists "+fileName+";")
+						_, err = transaction.ExecContext(context, string(fileBytes))
+						if err != nil {
+							transaction.Rollback()
+							return errors.New("DEPLOYMENT-ERROR in " + route + " -> " + err.Error())
+						}
 
-				_, err = transaction.ExecContext(context, string(fileBytes))
-				if err != nil {
-					transaction.Rollback()
-					return errors.New("DEPLOYMENT-ERROR in " + route + " -> " + err.Error())
-				}
-
-				if folder == "procedure" {
-					var procedureQuery string
-					err = transaction.QueryRowContext(context, "select concat('call ',?,'(',ifnull(group_concat(PARAMETER_NAME separator ','),''),');') from information_schema.parameters where SPECIFIC_SCHEMA = ? and SPECIFIC_NAME = ? and ROUTINE_TYPE='PROCEDURE' limit 1", fileName, pointer.dbName, fileName).Scan(&procedureQuery)
-					if err != nil {
-						transaction.Rollback()
-						return err
-					}
-					if !isAlreadyDeployed {
-						_, err = transaction.ExecContext(context, "insert into rvaProcedure (procedureName,procedureQuery,creatorAccount,updaterAccount) values (?,?,?,?);", fileName, procedureQuery, "System", "System")
+						if folder == "procedure" {
+							var procedureQuery string
+							err = transaction.QueryRowContext(context, "select concat('call ',?,'(',ifnull(group_concat(PARAMETER_NAME separator ','),''),');') from information_schema.parameters where SPECIFIC_SCHEMA = ? and SPECIFIC_NAME = ? and ROUTINE_TYPE='PROCEDURE' limit 1", fileName, pointer.dbName, fileName).Scan(&procedureQuery)
+							if err != nil {
+								transaction.Rollback()
+								return err
+							}
+							if !isAlreadyDeployed {
+								_, err = transaction.ExecContext(context, "insert into rvaProcedure (procedureName,procedureQuery,creatorAccount,updaterAccount) values (?,?,?,?);", fileName, procedureQuery, "System", "System")
+							} else {
+								transaction.ExecContext(context, "update rvaProcedure set procedureQuery = ?, updaterAccount = ?, updatedDate = now() where procedureName = ?;", procedureQuery, "System", fileName)
+							}
+						}
 					} else {
-						transaction.ExecContext(context, "update rvaProcedure set procedureQuery = ?, updaterAccount = ?, updatedDate = now() where procedureName = ?;", procedureQuery, "System", fileName)
+						instructions := strings.Split(string(fileBytes), ";")
+						for _, instruction := range instructions {
+							if instruction != "" {
+								_, err = transaction.ExecContext(context, instruction)
+								if err != nil {
+									transaction.Rollback()
+									return errors.New("DEPLOYMENT-ERROR in " + route + " -> " + err.Error())
+								}
+							}
+						}
 					}
-				}
 
-				if !isAlreadyDeployed {
-					_, err = transaction.ExecContext(context, "insert into rvaFileDeployed (fileName,route,reDeploy,creatorAccount,updaterAccount) values (?,?,?,?,?);", fileName, route, reDeploy, "System", "System")
-				} else {
-					transaction.ExecContext(context, "update rvaFileDeployed set updaterAccount = ?, updatedDate = now() where route = ?;", "System", route)
+					if !isAlreadyDeployed {
+						_, err = transaction.ExecContext(context, "insert into rvaFileDeployed (fileName,route,reDeploy,creatorAccount,updaterAccount) values (?,?,?,?,?);", fileName, route, reDeploy, "System", "System")
+					} else {
+						transaction.ExecContext(context, "update rvaFileDeployed set updaterAccount = ?, updatedDate = now() where route = ?;", "System", route)
+					}
 				}
 			}
+			transaction.Commit()
+
+			return nil
 		}
-		transaction.Commit()
 
-		return nil
-	}
-
-	for _, value := range []string{"schema", "function", "view", "procedure", "event", "trigger", "data", "migration"} {
-		err = deployByFolder(value)
-		if err != nil {
-			log.Fatalln(err.Error())
+		for _, value := range []string{"schema", "function", "view", "procedure", "event", "trigger", "data", "migration"} {
+			err = deployByFolder(value)
+			if err != nil {
+				log.Fatalln(err.Error())
+			}
 		}
 	}
 }
@@ -180,13 +193,14 @@ func (pointer RvaMySqlDao) ExecuteWithoutLock(query string) interface{} {
 	return pointer.execute(query, &sql.TxOptions{Isolation: sql.LevelReadUncommitted})
 }
 
-func (pointer RvaMySqlDao) ExecuteContext(parameter interface{}, queries []string) (interface{}, error) {
+func (pointer RvaMySqlDao) ExecuteContext(parameter interface{}, queries []string) interface{} {
 	connection := pointer.OpenConnection()
 	context := context.Background()
 	transaction, err := connection.BeginTx(context, nil)
 	if err != nil {
 		transaction.Rollback()
-		return nil, err
+		pointer.LogError(err)
+		return nil
 	}
 
 	executeQuery := func(query string, parameter map[string]interface{}) (interface{}, error) {
@@ -194,6 +208,7 @@ func (pointer RvaMySqlDao) ExecuteContext(parameter interface{}, queries []strin
 		defer rows.Close()
 		if err != nil {
 			transaction.Rollback()
+			pointer.LogError(err)
 			return nil, err
 		}
 		return pointer.mapResultset(rows), nil
@@ -202,9 +217,9 @@ func (pointer RvaMySqlDao) ExecuteContext(parameter interface{}, queries []strin
 	var finalResult interface{}
 
 	for index, query := range queries {
-		var recursive func(parameter interface{}) (interface{}, error)
+		var recurseParameters func(parameter interface{}) (interface{}, error)
 
-		recursive = func(parameter interface{}) (interface{}, error) {
+		recurseParameters = func(parameter interface{}) (interface{}, error) {
 			var result interface{}
 			var results []interface{}
 			switch parameter.(type) {
@@ -221,7 +236,7 @@ func (pointer RvaMySqlDao) ExecuteContext(parameter interface{}, queries []strin
 				return results, nil
 			case []interface{}:
 				for _, parameter := range parameter.([]interface{}) {
-					result, err = recursive(parameter)
+					result, err = recurseParameters(parameter)
 					if err != nil {
 						return nil, err
 					}
@@ -231,10 +246,10 @@ func (pointer RvaMySqlDao) ExecuteContext(parameter interface{}, queries []strin
 			return results, nil
 		}
 
-		result, err := recursive(parameter)
+		result, err := recurseParameters(parameter)
 
 		if err != nil {
-			return nil, err
+			return nil
 		}
 		if index == len(queries)-1 {
 			finalResult = result
@@ -245,10 +260,15 @@ func (pointer RvaMySqlDao) ExecuteContext(parameter interface{}, queries []strin
 	err = transaction.Commit()
 	if err != nil {
 		transaction.Rollback()
-		return nil, err
+		pointer.LogError(err)
+		return nil
 	}
 
-	return finalResult, nil
+	return finalResult
+}
+
+func (pointer RvaMySqlDao) LogError(err error) {
+	pointer.OpenConnection().Exec("insert into rvaError (message) values (?);", err.Error())
 }
 
 func (pointer RvaMySqlDao) execute(query string, opts *sql.TxOptions) interface{} {
@@ -257,12 +277,14 @@ func (pointer RvaMySqlDao) execute(query string, opts *sql.TxOptions) interface{
 	transaction, err := connection.BeginTx(context, opts)
 	if err != nil {
 		transaction.Rollback()
+		pointer.LogError(err)
 		return nil
 	}
-	rows, _ := transaction.QueryContext(context, query)
+	rows, err := transaction.QueryContext(context, query)
 	defer rows.Close()
 	if err != nil {
 		transaction.Rollback()
+		pointer.LogError(err)
 		return nil
 	}
 	result := pointer.mapResultset(rows)
@@ -270,6 +292,7 @@ func (pointer RvaMySqlDao) execute(query string, opts *sql.TxOptions) interface{
 	err = transaction.Commit()
 	if err != nil {
 		transaction.Rollback()
+		pointer.LogError(err)
 		return nil
 	}
 	return result
@@ -330,6 +353,8 @@ func (pointer RvaMySqlDao) mapResultset(rows *sql.Rows) interface{} {
 					switch strings.ToUpper(col.DatabaseTypeName()) {
 					case "INT":
 						v, _ = strconv.Atoi(v.(string))
+					case "TINYINT":
+						v, _ = strconv.ParseBool(v.(string))
 					}
 
 				} else {

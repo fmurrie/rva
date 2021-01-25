@@ -1,7 +1,7 @@
 create table rvaEntity
 (
     idRvaEntity int auto_increment,
-    idRvaModule varchar(10) not null,
+    idRvaModule int not null,
     entityName varchar(100) not null,
     description varchar(1000),
 	creatorAccount varchar(100) not null,

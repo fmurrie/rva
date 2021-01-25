@@ -4,9 +4,11 @@ create procedure rvaEndpoint_getAll
 begin
 
 select 
-	rvaEndpoint.idRvaEndpoint,
+    rvaEndpoint.idRvaOrganizedProcedure,
 	rvaEndpoint.path,
-	rvaType.typeName as httpVerb
+	rvaType.typeName as httpVerb,
+    rvaEndpoint.createAuth,
+    rvaEndpoint.validAuth
 from rvaEndpoint
 inner join rvaType 
 	on rvaEndpoint.idHTTPVerb=rvaType.idRvaType

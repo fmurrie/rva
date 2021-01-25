@@ -8,9 +8,9 @@ insert into rvaEntity
 )
 values
 (
-	'RVA',
+	(select idRvaModule from rvaModule where moduleName='RVA'),
 	'HTTPVerb',
 	'HTTPVerb Entity',
-	'system',
-	'system'
+	'System',
+	'System'
 );
