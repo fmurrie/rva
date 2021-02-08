@@ -13,27 +13,23 @@ import (
 	"time"
 )
 
-var lockRvaSecurityHelper = &sync.Mutex{}
-var instanceRvaSecurityHelper *RvaSecurityHelper
+var instanceSecurityHelper *SecurityHelper
+var singletonSecurityHelper sync.Once
 
-type RvaSecurityHelper struct {
+type SecurityHelper struct {
 	securityKey string
 }
 
-func GetRvaSecurityHelper() *RvaSecurityHelper {
-	if instanceRvaSecurityHelper == nil {
-		lockRvaSecurityHelper.Lock()
-		defer lockRvaSecurityHelper.Unlock()
-		if instanceRvaSecurityHelper == nil {
-			instanceRvaSecurityHelper = &RvaSecurityHelper{
-				securityKey: hex.EncodeToString(make([]byte, 32)),
-			}
+func GetSecurityHelper() *SecurityHelper {
+	singletonSecurityHelper.Do(func() {
+		instanceSecurityHelper = &SecurityHelper{
+			securityKey: hex.EncodeToString(make([]byte, 32)),
 		}
-	}
-	return instanceRvaSecurityHelper
+	})
+	return instanceSecurityHelper
 }
 
-func (pointer RvaSecurityHelper) Encrypt(stringToEncrypt string) string {
+func (pointer SecurityHelper) Encrypt(stringToEncrypt string) string {
 	stringEncrypted := ""
 
 	randomOption := func(options ...string) string {
@@ -70,7 +66,6 @@ func (pointer RvaSecurityHelper) Encrypt(stringToEncrypt string) string {
 		stringEncrypted = fmt.Sprint(stringEncrypted, "A")
 	}
 
-
 	key, _ := hex.DecodeString(pointer.securityKey)
 	plaintext := []byte(stringEncrypted)
 	block, err := aes.NewCipher(key)
@@ -90,7 +85,7 @@ func (pointer RvaSecurityHelper) Encrypt(stringToEncrypt string) string {
 	return fmt.Sprintf("%x", ciphertext)
 }
 
-func (pointer RvaSecurityHelper) Decrypt(encryptedString string) string {
+func (pointer SecurityHelper) Decrypt(encryptedString string) string {
 	key, _ := hex.DecodeString(pointer.securityKey)
 	enc, _ := hex.DecodeString(encryptedString)
 	block, err := aes.NewCipher(key)
@@ -107,7 +102,7 @@ func (pointer RvaSecurityHelper) Decrypt(encryptedString string) string {
 	if err != nil {
 		panic(err.Error())
 	}
-	encryptedString=fmt.Sprintf("%s", plaintext)
+	encryptedString = fmt.Sprintf("%s", plaintext)
 
 	decryptedString := ""
 	asciiString := ""

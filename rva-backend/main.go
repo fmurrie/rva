@@ -1,13 +1,14 @@
 package main
 
 import (
-	"rva/dao"
+	"rva/client"
 	"rva/controller"
+	"rva/controller/auth"
+	"rva/dao/sql"
+	"rva/keyword"
 )
 
-
-
 func main() {
-	dao.GetRvaMySqlDao().DeployDatabase()
-	controller.GetRvaRestController().RaiseEndpoints()
+	client.GetDatabaseClient().DeployDatabase()
+	controller.GetRestController(sql.GetMySqlDao(client.GetDatabaseClient()), auth.GetAuthControllerFactory().GetAuthController(keyword.Jwt)).RaiseEndpoints()
 }
