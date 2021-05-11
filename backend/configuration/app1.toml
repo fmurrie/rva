@@ -1,0 +1,45 @@
+[server]
+host = "ca3f0a5f66881858bc8ec576c601d8330f287c8cafc44d381315f46971c8b68a47eeb65dbf90b7f983e479d47eb395d70e24dda9cb8607a796490872832bc99b4bb1f6977bc25e2a6c8d1c8099ccdc4e237e31a1645c6f711322ed4ff8d7e31b71ae798c66508bd44194f8c25c4807f6e5c0594788f5"
+port = "9da545d312fcf1a5cfe8c17a92f57475d0d79a3b309b9b5fd69a7af5a1e56555d45bfdba00f59b13889c75fa47376287"
+
+[database]
+dbtype = "4fe04226a41a3fafe23521442be278313d6c7a880511c4062b31bb77007c183e4607ee1c64bdc6172a"
+driver = "c66ac46b2d5dff9c121cdc5e46a03a657ca46f10f597558568c06549ba39d0b506b9c0f57520a28050eb8d3343ed67a0313bd9708668b3539205160d3618"
+host = "c8e2c75f5ca23313f238bf2fbcd9827286ed855dcb2e7d3b83b59deb84fe3420edd99e971a9292c699b1e827ae6405c1488b1b51355446eb67a7c7202bdd23310d46ed02"
+port = "34ebff4bf61782c87ee7ceb3d13f5c5b5e363d79e41cd438478857ae4ce4cbc88bb11c852f6666f510ac4d8279006c3e"
+dbname = "fdf9c5acee81d4078904fea3e447a97a72a81796ed8bf9a515ccda9389db68c7ddec6c06e4dda91cd1631380e058"
+user = "dd8f1615b536701ed880216713736dcdede512427e2fa682d45da3000ccd5883378f7e056f35702d24915ba9f528eb0b71cb42596809"
+password ="25c8c0c7f4fa0461c8b92d605b05c2627b603b266b0b29201d4295f82d5332467e6380ca9fde9f9317ea82b89316734fc506047a5996fd"
+charset = "c07f5701b0fc70e5bb8c67210a1e02d2815b74454f2e36337d79ae02adbdd57d8dd674ee95cd8b164153414fb405"
+deploy = true
+
+[jwt]
+signin_key = "a325918a9ecaa1f02892e1c9f9b54195536b1ccc612480419a1a051a9f2fc9f34f7675258f100d95b61cb4a3de5db8c82b7f2298b31948dcedaf968e0cbf6c3b32347ac95d1d7991d41e6e105bd2b0a00ab8e19508442264631feeacb0d41be28579efc65ac23f37b24d351fb8aa8215b7724170471a943d3e54c15419bf5d087d66e6882bfa71cc87fad7db4cc74f6a5c"
+
+[google_auth]
+client_id = "NONE"
+client_secret = "NONE"
+init_path = "/link/google"
+callback_path = "/account/google/callback"
+response_url = "https://www.googleapis.com/plus/v1/people/me"
+
+[github_auth]
+client_id = "7f52ffb2222c9e542e5f"
+client_secret = "240b8abf37facd61918101729682e746a05fb567"
+init_path = "/link/github"
+callback_path = "/account/github/callback"
+response_url = "https://api.github.com/user"
+
+[bitbucket_auth]
+client_id = "NONE"
+client_secret = "NONE"
+init_path = "/link/bitbucket"
+callback_path = "/account/bitbucket/callback"
+response_url = "https://api.bitbucket.org/2.0/user"
+
+[linkedin_auth]
+client_id = "NONE"
+client_secret = "NONE"
+init_path = "/link/linkedin"
+callback_path = "/account/linkedin/callback"
+response_url = "https://api.linkedin.com/v1/people/~:(id,first-name,last-name,email-address)?format=json"
